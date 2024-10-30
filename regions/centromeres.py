@@ -40,37 +40,31 @@ class CentromereParams:
     max_peripheral_length: int = 1000000  # 1 Mb
     transition_length: int = 200000  # 200 kb
     
-    # Параметры HOR
-    core_hor_params: HORParams = None
-    peripheral_hor_params: HORParams = None
-    
-    # Параметры CENP-B боксов
-    cenpb_params: CENPBParams = None
+    core_hor_params: Optional[HORParams] = None
+    peripheral_hor_params: Optional[HORParams] = None
+    cenpb_params: Optional[CENPBParams] = None
     
     def __post_init__(self):
-        # Устанавливаем параметры по умолчанию для HOR в core регионе
         if self.core_hor_params is None:
             self.core_hor_params = HORParams(
-                unit_size=171,  # Размер альфа-сателлитного мономера
-                units_in_hor=12,  # Стандартное количество мономеров в HOR
-                hor_copies=100,  # Большое количество копий для core региона
+                unit_size=171,
+                units_in_hor=12,
+                hor_copies=100,
                 mutation_rate_between_units=0.02,
                 mutation_rate_between_hors=0.01,
                 gc_content=0.58
             )
         
-        # Параметры HOR для периферийных областей (более вариабельные)
         if self.peripheral_hor_params is None:
             self.peripheral_hor_params = HORParams(
                 unit_size=171,
-                units_in_hor=8,  # Меньше мономеров в HOR
-                hor_copies=50,  # Меньше копий
-                mutation_rate_between_units=0.05,  # Выше уровень мутаций
+                units_in_hor=8,
+                hor_copies=50,
+                mutation_rate_between_units=0.05,
                 mutation_rate_between_hors=0.03,
                 gc_content=0.56
             )
         
-        # Параметры CENP-B боксов
         if self.cenpb_params is None:
             self.cenpb_params = CENPBParams()
 
@@ -95,22 +89,26 @@ class CentromereRegion(ChromosomeRegion):
         if zone == CentromereZone.CORE:
             presence_prob = params.presence_rate
         elif zone == CentromereZone.PERIPHERAL:
-            presence_prob = params.presence_rate * 0.7  # Меньше боксов на периферии
+            presence_prob = params.presence_rate * 0.7
         else:
-            presence_prob = params.presence_rate * 0.4  # Еще меньше в переходных зонах
+            presence_prob = params.presence_rate * 0.4
         
         # Проходим по последовательности с шагом spacing
         for pos in range(0, len(sequence), params.spacing):
             if np.random.random() < presence_prob:
+                # Разбиваем консенсусную последовательность на важные участки
                 box_seq = list(params.consensus)
+                # TTCG и GGGA - важные мотивы, которые нужно сохранить
+                conserved_regions = [(0, 4), (12, 16)]  # позиции TTCG и GGGA
                 
-                # Вносим мутации
+                # Вносим мутации только в неконсервативные участки
                 for i in range(len(box_seq)):
-                    if np.random.random() < params.mutation_rate:
-                        original_base = box_seq[i]
-                        bases = ['A', 'T', 'G', 'C']
-                        bases.remove(original_base)
-                        box_seq[i] = np.random.choice(bases)
+                    if not any(start <= i < end for start, end in conserved_regions):
+                        if np.random.random() < params.mutation_rate:
+                            original_base = box_seq[i]
+                            bases = ['A', 'T', 'G', 'C']
+                            bases.remove(original_base)
+                            box_seq[i] = np.random.choice(bases)
                 
                 boxes.append({
                     'type': 'CENP-B_box',
@@ -121,85 +119,161 @@ class CentromereRegion(ChromosomeRegion):
                 })
         
         return boxes
+        
+    def _convert_mutation_to_feature(self, mutation: Dict, position: int, zone: CentromereZone) -> Dict:
+        """Преобразует мутацию в полноценный feature с необходимыми полями"""
+        feature = {
+            'type': mutation['type'],
+            'start': position + mutation.get('position', 0),
+            'end': position + mutation.get('position', 0) + mutation.get('size', 1),
+            'zone': zone.value
+        }
+        return feature
     
-    def _generate_zone(self, zone: CentromereZone, length: int) -> Tuple[str, List[Dict]]:
+    def _generate_zone(self, zone: CentromereZone, target_length: int) -> Tuple[str, List[Dict]]:
         """Генерирует последовательность для определенной зоны центромеры"""
-        # Выбираем параметры в зависимости от зоны
+        if target_length <= 0:
+            return "", []
+            
         if zone == CentromereZone.CORE:
             hor_params = self.centromere_params.core_hor_params
         else:
             hor_params = self.centromere_params.peripheral_hor_params
+            
+        # Рассчитываем базовые параметры
+        single_hor_length = hor_params.unit_size * hor_params.units_in_hor
+        min_required_copies = (target_length + single_hor_length - 1) // single_hor_length
         
-        self.hor_gen.params = hor_params
+        # Создаем новые параметры с нужным количеством копий
+        new_params = HORParams(
+            unit_size=hor_params.unit_size,
+            units_in_hor=hor_params.units_in_hor,
+            hor_copies=min_required_copies,
+            mutation_rate_between_units=hor_params.mutation_rate_between_units,
+            mutation_rate_between_hors=hor_params.mutation_rate_between_hors,
+            gc_content=hor_params.gc_content
+        )
         
-        # Генерируем последовательность HOR
-        sequence, mutations = self.hor_gen.generate_array()
+        # Генерируем HOR массив
+        self.hor_gen.params = new_params
+        sequence, mutations = [], []
         
-        # Обрезаем или дополняем до нужной длины
-        if len(sequence) < length:
-            copies_needed = (length - len(sequence)) // len(sequence) + 1
-            sequence = sequence * copies_needed
-        sequence = sequence[:length]
+        while len(sequence) < target_length:
+            seq, muts = self.hor_gen.generate_array()
+            current_len = len(sequence)
+            
+            # Корректируем позиции мутаций
+            for mut in muts:
+                if 'position' in mut:
+                    mut['position'] += current_len
+            
+            sequence.extend(list(seq))
+            mutations.extend(muts)
+        
+        # Обрезаем до нужной длины
+        sequence = ''.join(sequence[:target_length])
+        
+        # Создаем features
+        features = []
+        
+        # Добавляем базовый feature для всей зоны
+        features.append({
+            'type': f'{zone.value}_region',
+            'start': 0,
+            'end': target_length,
+            'zone': zone.value
+        })
+        
+        # Добавляем мутации
+        for mut in mutations:
+            if mut.get('position', 0) < target_length:
+                features.append(self._convert_mutation_to_feature(mut, 0, zone))
         
         # Добавляем CENP-B боксы
-        cenpb_boxes = self._generate_cenpb_boxes(sequence, zone)
+        features.extend(self._generate_cenpb_boxes(sequence, zone))
         
-        # Применяем гомогенизацию к core региону
+        # Применяем гомогенизацию для core региона
         if zone == CentromereZone.CORE:
             sequence, conversions = self.homogenization.apply_gene_conversion(
                 sequence,
                 unit_size=hor_params.unit_size,
                 units_in_hor=hor_params.units_in_hor
             )
+            
+            for conv in conversions:
+                if conv['start'] < target_length:
+                    features.append({
+                        'type': 'gene_conversion',
+                        'start': conv['start'],
+                        'end': min(conv['start'] + conv['length'], target_length),
+                        'donor_start': conv['donor_start'],
+                        'zone': zone.value
+                    })
         
-        # Собираем все особенности
-        features = []
-        features.extend([{**mut, 'zone': zone.value} for mut in mutations])
-        features.extend(cenpb_boxes)
-        if zone == CentromereZone.CORE:
-            features.extend([{**conv, 'zone': zone.value} for conv in conversions])
-        
+        logger.info(f"Generated {zone.value} zone of length {len(sequence)} (target: {target_length})")
         return sequence, features
     
     def _create_transition_zone(self, zone1_seq: str, zone2_seq: str,
                               length: int) -> Tuple[str, List[Dict]]:
         """Создает переходную зону между двумя регионами"""
-        # Создаем градиент для смешивания последовательностей
-        gradient_params = GradientParams(
-            start_value=0.0,
-            end_value=1.0,
-            shape='sigmoid',
-            steepness=5.0
-        )
-        gradient = self.gradient_gen.create_gradient(gradient_params, length)
-        
-        # Генерируем переходную последовательность
-        transition_seq = ""
-        for i in range(length):
-            # Определяем, какую последовательность использовать в данной позиции
-            if np.random.random() < gradient[i]:
-                base_pool = zone2_seq
-            else:
-                base_pool = zone1_seq
+        if length <= 0:
+            return "", []
             
-            # Выбираем случайный нуклеотид из соответствующей последовательности
-            pos = np.random.randint(0, len(base_pool))
-            transition_seq += base_pool[pos]
+        # Создаем более плавный сигмоидальный градиент
+        positions = np.linspace(-6, 6, length)  # Используем более широкий диапазон для плавности
+        gradient = 1 / (1 + np.exp(-positions))
+        gradient = (gradient - gradient.min()) / (gradient.max() - gradient.min())
         
-        # Создаем аннотации для переходной зоны
-        features = [{
-            'type': 'transition',
-            'start': 0,
-            'end': length,
-            'gradient_value': float(g),
-            'zone': CentromereZone.TRANSITION.value
-        } for g in gradient]
+        # Генерируем последовательность
+        sequence = []
         
-        return transition_seq, features
+        # Берем случайные участки из обеих последовательностей
+        window_size = min(171, len(zone1_seq), len(zone2_seq))  # Используем размер альфа-сателлита
+        
+        for i in range(0, length, window_size):
+            current_pos = min(i + window_size, length)
+            grad_value = gradient[i:current_pos].mean()
+            
+            # Выбираем последовательность на основе градиента
+            if np.random.random() < grad_value:
+                source_seq = zone2_seq
+            else:
+                source_seq = zone1_seq
+                
+            # Берем случайный участок соответствующей длины
+            start_pos = np.random.randint(0, len(source_seq) - window_size)
+            sequence.extend(source_seq[start_pos:start_pos + window_size])
+        
+        sequence = ''.join(sequence[:length])
+        
+        # Создаем features для визуализации градиента
+        features = []
+        step = length // 20  # 20 окон для плавного отображения
+        for i in range(0, length, step):
+            end_pos = min(i + step, length)
+            grad_value = float(gradient[i:end_pos].mean())
+            
+            features.append({
+                'type': 'transition',
+                'start': i,
+                'end': end_pos,
+                'gradient_value': grad_value,
+                'zone': CentromereZone.TRANSITION.value
+            })
+            
+        logger.info(f"Generated transition zone of length {len(sequence)} with {len(features)} gradient features")
+        
+        # Проверяем монотонность
+        gradient_values = [f['gradient_value'] for f in features]
+        is_monotonic = all(x <= y for x, y in zip(gradient_values, gradient_values[1:]))
+        logger.info(f"Transition zone gradient is {'monotonic' if is_monotonic else 'not monotonic'}")
+        logger.info(f"Gradient values: {gradient_values}")
+        
+        return sequence, features
     
     def generate(self) -> Tuple[str, List[Dict]]:
         """Генерирует полный центромерный регион"""
-        # Определяем размеры каждой зоны
+        # Определяем размеры зон
         core_length = np.random.randint(
             self.centromere_params.min_core_length,
             self.centromere_params.max_core_length
@@ -213,7 +287,7 @@ class CentromereRegion(ChromosomeRegion):
             self.centromere_params.max_peripheral_length
         )
         
-        # Генерируем основные зоны
+        # Генерируем зоны
         core_seq, core_features = self._generate_zone(CentromereZone.CORE, core_length)
         left_peri_seq, left_features = self._generate_zone(
             CentromereZone.PERIPHERAL,
@@ -238,42 +312,23 @@ class CentromereRegion(ChromosomeRegion):
         sequence = (left_peri_seq + left_trans_seq + 
                    core_seq + right_trans_seq + right_peri_seq)
         
-        # Корректируем позиции в аннотациях и собираем их вместе
-        current_pos = 0
+        # Корректируем позиции features и собираем их вместе
         features = []
+        current_pos = 0
         
-        # Левая периферийная область
-        for feature in left_features:
-            feature['start'] += current_pos
-            feature['end'] += current_pos
-            features.append(feature)
-        current_pos += len(left_peri_seq)
-        
-        # Левая переходная зона
-        for feature in left_trans_features:
-            feature['start'] += current_pos
-            feature['end'] += current_pos
-            features.append(feature)
-        current_pos += len(left_trans_seq)
-        
-        # Центральная область
-        for feature in core_features:
-            feature['start'] += current_pos
-            feature['end'] += current_pos
-            features.append(feature)
-        current_pos += len(core_seq)
-        
-        # Правая переходная зона
-        for feature in right_trans_features:
-            feature['start'] += current_pos
-            feature['end'] += current_pos
-            features.append(feature)
-        current_pos += len(right_trans_seq)
-        
-        # Правая периферийная область
-        for feature in right_features:
-            feature['start'] += current_pos
-            feature['end'] += current_pos
-            features.append(feature)
+        # Добавляем features с корректными позициями для каждой зоны
+        for zone_features, zone_length in [
+            (left_features, len(left_peri_seq)),
+            (left_trans_features, len(left_trans_seq)),
+            (core_features, len(core_seq)),
+            (right_trans_features, len(right_trans_seq)),
+            (right_features, len(right_peri_seq))
+        ]:
+            for feature in zone_features:
+                feature = feature.copy()  # Создаем копию чтобы не модифицировать оригинал
+                feature['start'] += current_pos
+                feature['end'] += current_pos
+                features.append(feature)
+            current_pos += zone_length
         
         return sequence, features
