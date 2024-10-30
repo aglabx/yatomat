@@ -58,11 +58,18 @@ class TelomereRegion(ChromosomeRegion):
         return np.random.choice(self.telomere_params.variant_types)
     
     def _apply_mutations(self, sequence: str, mutation_rate: float) -> str:
-        """Вносит мутации в последовательность"""
+        """Applies mutations to sequence with given rate"""
         sequence = list(sequence)
+        
+        # Ensure mutation rate increases from 5' to 3' end
+        actual_rate = mutation_rate
         for i in range(len(sequence)):
-            if np.random.random() < mutation_rate:
-                # 80% замен, 10% инсерций, 10% делеций
+            # Increase mutation probability towards 3' end
+            position_factor = i / len(sequence)  # 0 at 5' end, 1 at 3' end
+            local_rate = actual_rate * (1 + 2 * position_factor)  # Triple the rate at 3' end
+            
+            if np.random.random() < local_rate:
+                # Mutation types: 80% substitutions, 10% insertions, 10% deletions
                 mutation_type = np.random.choice(['sub', 'ins', 'del'], p=[0.8, 0.1, 0.1])
                 
                 if mutation_type == 'sub':
@@ -73,7 +80,7 @@ class TelomereRegion(ChromosomeRegion):
                     sequence.insert(i, np.random.choice(['A', 'T', 'G', 'C']))
                 elif mutation_type == 'del' and len(sequence) > 1:
                     sequence.pop(i)
-                    break
+                    break  # Skip rest of mutations after deletion to maintain position indexing
         
         return ''.join(sequence)
     
@@ -165,6 +172,10 @@ class SubtelomereRegion(ChromosomeRegion):
     def _generate_transposon(self, min_length: int = 1000, 
                            max_length: int = 5000) -> Tuple[str, Dict]:
         """Генерирует транспозон-подобный элемент"""
+        # Ensure max_length is greater than min_length
+        min_length = max(1000, min_length)  # Minimum size should not be less than 1000
+        max_length = max(min_length + 1, max_length)  # Ensure max is greater than min
+        
         length = np.random.randint(min_length, max_length)
         sequence = ''.join(np.random.choice(['A', 'T', 'G', 'C']) for _ in range(length))
         
@@ -180,19 +191,56 @@ class SubtelomereRegion(ChromosomeRegion):
             self.subtelomere_params.max_length
         )
         
+        # Рассчитываем целевые длины для каждого типа элементов
+        target_satellite_length = int(subtelomere_length * self.subtelomere_params.satellite_density)
+        target_transposon_length = int(subtelomere_length * self.subtelomere_params.transposon_density)
+        
         sequence = ""
         features = []
+        current_satellite_length = 0
+        current_transposon_length = 0
         current_pos = 0
         
         while current_pos < subtelomere_length:
-            # Определяем тип следующего элемента
-            if np.random.random() < self.subtelomere_params.satellite_density:
-                # Генерируем блок сателлитов
-                block_size = np.random.randint(1000, 5000)
+            remaining_length = subtelomere_length - current_pos
+            
+            # Определяем, какой тип элемента добавить
+            can_add_satellite = current_satellite_length < target_satellite_length
+            can_add_transposon = current_transposon_length < target_transposon_length
+            
+            if not (can_add_satellite or can_add_transposon):
+                # Если достигнуты обе цели, заполняем промежуточной последовательностью
+                block_size = min(1000, remaining_length)
+                block_seq = ''.join(np.random.choice(['A', 'T', 'G', 'C']) for _ in range(block_size))
+                block_info = {'type': 'spacer', 'length': block_size}
+            
+            elif can_add_satellite and (not can_add_transposon or np.random.random() < 0.5):
+                # Генерируем сателлитный блок
+                block_size = min(
+                    np.random.randint(1000, 3000),
+                    target_satellite_length - current_satellite_length,
+                    remaining_length
+                )
                 block_seq, block_info = self._generate_satellite_block(block_size)
+                current_satellite_length += block_size
+            
             else:
                 # Генерируем транспозон
-                block_seq, block_info = self._generate_transposon()
+                remaining_transposon = target_transposon_length - current_transposon_length
+                min_size = min(1000, remaining_transposon, remaining_length)
+                max_size = min(3000, remaining_transposon, remaining_length)
+                
+                if max_size > min_size:
+                    block_seq, block_info = self._generate_transposon(
+                        min_length=min_size,
+                        max_length=max_size
+                    )
+                    current_transposon_length += len(block_seq)
+                else:
+                    # If we can't create a valid transposon, use a spacer instead
+                    block_size = min(1000, remaining_length)
+                    block_seq = ''.join(np.random.choice(['A', 'T', 'G', 'C']) for _ in range(block_size))
+                    block_info = {'type': 'spacer', 'length': block_size}
             
             # Добавляем последовательность и аннотацию
             sequence += block_seq
@@ -201,13 +249,12 @@ class SubtelomereRegion(ChromosomeRegion):
                 'end': current_pos + len(block_seq)
             })
             features.append(block_info)
-            
             current_pos += len(block_seq)
         
-        # Обрезаем до нужной длины
+        # Обрезаем до точной длины
         self.sequence = sequence[:subtelomere_length]
         
-        # Корректируем координаты последнего элемента
+        # Корректируем последнюю аннотацию
         if features:
             features[-1]['end'] = min(features[-1]['end'], subtelomere_length)
         
