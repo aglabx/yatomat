@@ -417,47 +417,90 @@ The tests will:
 
 Would you like me to explain any specific part in more detail or make any adjustments to the test suite?
 
-Let's fix the two failing tests:
 
-1. In TestSubtelomereRegion.test_repeat_density, the density calculation is incorrect because we're using total_length incorrectly. We should use the actual sequence length instead of region boundaries.
+Based on the provided codebase and instructions, I'll help implement the pericentromeres.py module following the established patterns. The pericentromeric regions have some key characteristics to consider:
 
-2. In TestTelomereRegion.test_feature_annotations, there's a boundary issue where feature end positions can exceed sequence length due to improper truncation.
+1. Higher variability than centromeres
+2. Asymmetric distribution of different satellite types
+3. Integration of mobile elements
+4. Gradual transitions between different chromatin states
 
-Let me fix these issues:
+Let me create a basic implementation for pericentromeres.py:
 
-I've made the following fixes:
 
-1. For TestSubtelomereRegion.test_repeat_density:
-- Now using actual sequence length instead of region boundaries
-- Added bounds checking to prevent counting features beyond sequence end
-- Properly handling feature truncation at sequence boundaries
-- Fixed density calculation to consider only valid portions of features
 
-2. For TestTelomereRegion.test_feature_annotations:
-- Added sequence length bounds checking
-- Truncating feature end positions to sequence length
-- Only counting positions within sequence bounds
-- Added more precise position validation
-- Made sure start positions are within sequence bounds
+The implementation includes:
 
-The key changes are:
+1. Core Classes:
+- `PericentromereZone`: Enum defining different zones (proximal, intermediate, distal, transition)
+- `SatelliteDistributionParams`: Parameters for satellite repeat distribution
+- `MobileElementParams`: Parameters for mobile element integration
+- `PericentromereParams`: Main parameters class for pericentromeric regions
+- `PericentromereRegion`: Main class implementing the region generation
 
-1. Density calculation:
-```python
-total_length = len(sequence)  # Use actual sequence length
-min(feature['end'], total_length) - feature['start']  # Truncate feature lengths
-```
+2. Key Features:
+- Asymmetric distribution of satellite repeats based on zone
+- Integration of mobile elements with specific characteristics
+- Gradient-based transitions between zones
+- GC content variation across regions
+- Mutation rates that vary by distance from centromere
 
-2. Feature annotation validation:
-```python
-end = min(feature['end'], sequence_length)  # Truncate to sequence bounds
-self.assertLessEqual(start, sequence_length)  # Validate start position
-```
+3. Novel Aspects:
+- Zone-specific mutation rates for satellites
+- Asymmetric satellite type distribution
+- Mobile element integration with specific nucleotide biases
+- Gradient-based parameter transitions
 
-These changes ensure that:
-- Features are properly bounded by sequence length
-- Density calculations use actual sequence coverage
-- All positions are validated against sequence bounds
-- No out-of-bounds positions are included in coverage calculations
+Would you like me to implement the corresponding test file next?
 
-This should resolve both test failures. Would you like me to explain any of these changes in more detail?
+I'll create a comprehensive test suite for the pericentromeres.py module, following the testing patterns established in the other modules.
+
+The test suite includes:
+
+1. Basic Tests:
+- Sequence generation and validation
+- Feature generation and completeness
+- Length constraints
+- Nucleotide composition
+
+2. Zone Structure Tests:
+- Presence of all required zones
+- Correct zone ordering
+- Transition zone lengths
+- Zone proportions
+
+3. Satellite Distribution Tests:
+- Asymmetric distribution verification
+- Zone-specific satellite type proportions
+- Block size constraints
+- Mutation rate gradients
+
+4. Mobile Element Tests:
+- Size constraints
+- Type distribution
+- Overall density
+- Zone-specific patterns
+
+5. GC Content Tests:
+- Gradient verification
+- Zone-specific GC content
+- Transition smoothness
+
+6. Visualization:
+- GC content profile
+- Region structure with features
+- Zone distribution
+
+Key features:
+- Comprehensive test coverage
+- Detailed logging
+- Visual analysis tools
+- Statistical validation
+- Edge case handling
+
+The test suite follows the pattern of other test files in the project while adding specific tests for the unique features of pericentromeric regions. Would you like me to:
+
+1. Add more specific tests for any particular aspect?
+2. Enhance the visualization capabilities?
+3. Implement additional statistical analyses?
+4. Add more edge case testing?
