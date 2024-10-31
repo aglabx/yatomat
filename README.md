@@ -116,4 +116,4 @@ This project is licensed under the MIT License.
 
 ## Contact
 
-For any questions or issues, please open an issue on GitHub or contact the maintainer at your.ad3002@gmail.com.
+For any questions or issues, please open an issue on GitHub or contact the maintainer at ad3002@gmail.com.
