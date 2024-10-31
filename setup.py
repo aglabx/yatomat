@@ -2,14 +2,15 @@ from setuptools import setup, find_packages
 
 setup(
     name='yatomat',
-    version='0.1.1',
+    version='0.1.2',
     author='Marina Popova, Aleksey Komissarov',
     author_email='ad3002@example.com',
     description='Yet Another Tool for Making Artificial Genomes',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     url='https://github.com/aglabx/yatomat',
-    packages=find_packages(include=['yatomat', 'yatomat.*']),
+    # Изменяем packages чтобы правильно находить модули
+    packages=find_packages(),
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
@@ -27,9 +28,10 @@ setup(
         'scipy',
     ],
     include_package_data=True,
+    # Исправляем entry_points чтобы правильно указать путь к main функции
     entry_points={
         'console_scripts': [
-            'yatomat=yatomat.yatomat:main',  # Assuming you have a main function in yatomat.py
+            'yatomat=yatomat.yatomat:main',
         ],
     },
     project_urls={

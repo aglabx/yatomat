@@ -32,18 +32,23 @@ Clone the repository and install the required dependencies:
 ```bash
 git clone https://github.com/yourusername/yatomat.git
 cd yatomat
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Usage
 
-### Command Line Interface
-
-Run the main script with the required configuration file and optional parameters:
+After installation, YATOMAT can be run from anywhere using the command line:
 
 ```bash
-python yatomat.py config.json --output-dir output --prefix chr1 --compress --seed 42
+yatomat config.json --output-dir output --prefix chr1 --compress --seed 42
 ```
+
+Available options:
+- `config.json`: Path to configuration file (required)
+- `--output-dir`: Output directory (default: output)
+- `--prefix`: Prefix for output files (default: chr)
+- `--compress`: Compress output files (optional)
+- `--seed`: Random seed for reproducibility (optional)
 
 ### Configuration File
 
@@ -113,7 +118,7 @@ The tool generates two main output files:
 To ensure the correctness of the generated sequences and annotations, comprehensive test scripts are provided for each module. Run the tests using:
 
 ```bash
-python -m unittest discover tests
+pytest .
 ```
 
 ## Contributing
