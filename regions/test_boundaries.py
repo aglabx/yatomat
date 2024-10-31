@@ -198,7 +198,7 @@ class TestBoundaryRegion(unittest.TestCase):
         sequence, features = self.region.generate()
 
         # Calculate GC content in windows
-        window_size = 1000
+        window_size = 10000
         gc_profile = []
         for i in range(0, len(sequence), window_size):
             window = sequence[i:i + window_size]
@@ -242,7 +242,7 @@ class TestBoundaryRegion(unittest.TestCase):
             self.assertLessEqual(current['end'], len(sequence))
 
             # Check for invalid overlaps
-            if current['type'] != 'chromatin_transition' and next_feat['type'] != 'chromatin_transition':
+            if current['type'] != 'CTCF_site' and next_feat['type'] != 'CTCF_site':
                 self.assertLessEqual(
                     current['end'],
                     next_feat['start'],

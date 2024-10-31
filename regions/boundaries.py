@@ -95,7 +95,7 @@ class CTCFSite:
     def _reverse_complement(sequence: str) -> str:
         """Generate reverse complement of a sequence"""
         complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'N': 'N'}
-        return ''.join(complement[base] for base in reversed(sequence))
+        return ''.join(complement.get(base, 'N') for base in reversed(sequence))
 
     @property
     def sequence(self) -> str:
@@ -104,12 +104,18 @@ class CTCFSite:
 class TADomain:
     """Class representing a Topologically Associating Domain"""
 
-    def __init__(self, params: TADParams):
+    def __init__(self, params: TADParams, size: Optional[int] = None):
         self.params = params
-        self.size = np.random.randint(params.min_size, params.max_size)
+        if size is None:
+            self.size = np.random.randint(params.min_size, params.max_size)
+        else:
+            if size < 2 * len(CTCFSite.CONSENSUS):
+                raise ValueError(f"TAD size {size} is too small for CTCF sites.")
+            self.size = size
         self.boundaries: List[CTCFSite] = []
-        self.internal_features: List[Dict] = []
+        self.internal_ctcf_sites: List[CTCFSite] = []
         self._generate_boundaries()
+        self._generate_internal_ctcf_sites()
 
     def _generate_boundaries(self):
         """Generate CTCF sites at domain boundaries"""
@@ -121,8 +127,12 @@ class TADomain:
             self.params.boundary_strength
         ))
 
-        # Internal CTCF sites
-        num_internal = int(self.size * self.params.ctcf_density / 1000)
+    def _generate_internal_ctcf_sites(self):
+        """Generate internal CTCF sites within the TAD"""
+        num_internal = int((self.size / 1000) * self.params.ctcf_density)
+        # Ensure at least one internal CTCF site if density > 0
+        if self.params.ctcf_density > 0 and num_internal == 0:
+            num_internal = 1
         for _ in range(num_internal):
             pos = np.random.randint(
                 len(CTCFSite.CONSENSUS),
@@ -130,7 +140,11 @@ class TADomain:
             )
             orientation = np.random.choice(["forward", "reverse"])
             strength = np.random.uniform(0.3, 0.9)
-            self.boundaries.append(CTCFSite(pos, orientation, strength))
+            self.internal_ctcf_sites.append(CTCFSite(pos, orientation, strength))
+
+    def get_ctcf_sites(self) -> List[CTCFSite]:
+        """Return all CTCF sites (boundaries + internal)"""
+        return self.boundaries + self.internal_ctcf_sites
 
 class BoundaryRegion(ChromosomeRegion):
     """Class for generating boundary regions between different chromatin states"""
@@ -143,73 +157,35 @@ class BoundaryRegion(ChromosomeRegion):
         self.repeat_gen = RepeatGenerator()
         self.mut_engine = MutationEngine()
 
-    def _apply_ctcf_sites(self, sequence: str, tad_start: int, tad_end: int) -> Tuple[str, List[Dict]]:
-        """Generate and place CTCF binding sites for a TAD"""
-        sites = []
-        length = len(sequence)
-        
-        # Start boundary - forward orientation
-        start_site = CTCFSite(0, "forward", self.boundary_params.tad_params.boundary_strength)
-        sequence = sequence[:0] + start_site.sequence + sequence[len(start_site.sequence):]
-        sites.append({
-            'type': 'CTCF_site',
-            'start': tad_start + 0,
-            'end': tad_start + len(start_site.sequence),
-            'orientation': 'forward',
-            'strength': start_site.strength
-        })
-
-        # End boundary - reverse orientation
-        end_pos = length - len(CTCFSite.CONSENSUS)
-        end_site = CTCFSite(end_pos, "reverse", self.boundary_params.tad_params.boundary_strength)
-        sequence = sequence[:end_pos] + end_site.sequence + sequence[end_pos + len(end_site.sequence):]
-        sites.append({
-            'type': 'CTCF_site',
-            'start': tad_start + end_pos,
-            'end': tad_start + end_pos + len(end_site.sequence),
-            'orientation': 'reverse',
-            'strength': end_site.strength
-        })
-
-        # Internal CTCF sites
-        num_internal = int(length * self.boundary_params.tad_params.ctcf_density / 1000)
-        for _ in range(num_internal):
-            pos = np.random.randint(
-                len(CTCFSite.CONSENSUS),
-                length - len(CTCFSite.CONSENSUS)
-            )
-            orientation = np.random.choice(["forward", "reverse"])
-            strength = np.random.uniform(0.3, 0.9)
-
-            site = CTCFSite(pos, orientation, strength)
-            sequence = sequence[:pos] + site.sequence + sequence[pos + len(site.sequence):]
-
-            sites.append({
-                'type': 'CTCF_site',
-                'start': tad_start + pos,
-                'end': tad_start + pos + len(site.sequence),
-                'orientation': orientation,
-                'strength': strength
-            })
-
-        return sequence, sites
-
-    def _generate_tad(self, start_pos: int, length: int) -> Tuple[str, List[Dict]]:
-        """Generate a TAD with appropriate features"""
-        sequence = self.repeat_gen.seq_gen.generate_sequence(length, local_gc=self.params.gc_content)
+    def _generate_tad_sequence(self, tad: TADomain, tad_start: int) -> Tuple[str, List[Dict]]:
+        """Generate the sequence and features for a single TAD"""
+        sequence = self.repeat_gen.seq_gen.generate_sequence(tad.size, local_gc=self.params.gc_content)
         features = []
 
         # Add TAD annotation
         features.append({
             'type': 'TAD',
-            'start': start_pos,
-            'end': start_pos + length,
-            'size': length
+            'start': tad_start,
+            'end': tad_start + tad.size,
+            'size': tad.size
         })
 
-        # Add CTCF sites
-        sequence, ctcf_features = self._apply_ctcf_sites(sequence, start_pos, start_pos + length)
-        features.extend(ctcf_features)
+        # Insert CTCF sites
+        for site in tad.get_ctcf_sites():
+            site_seq = site.sequence
+            pos = site.position
+            # Ensure that the site fits within the sequence
+            if pos + len(site_seq) > tad.size:
+                logger.warning(f"CTCF site at position {pos} with length {len(site_seq)} exceeds TAD size {tad.size}. Skipping.")
+                continue
+            sequence = sequence[:pos] + site_seq + sequence[pos + len(site_seq):]
+            features.append({
+                'type': 'CTCF_site',
+                'start': tad_start + pos,
+                'end': tad_start + pos + len(site_seq),
+                'orientation': site.orientation,
+                'strength': site.strength
+            })
 
         return sequence, features
 
@@ -227,11 +203,17 @@ class BoundaryRegion(ChromosomeRegion):
             GradientParams(
                 start_value=params.gc_content_range[0],
                 end_value=params.gc_content_range[1],
-                shape='sigmoid',
+                shape='linear',  # Changed to linear for strict monotonicity
                 steepness=params.gradient_steepness
             ),
             length
         )
+
+        # Ensure the gradient is strictly monotonic
+        if params.gc_content_range[0] < params.gc_content_range[1]:
+            gc_gradient = np.sort(gc_gradient)
+        else:
+            gc_gradient = np.sort(gc_gradient)[::-1]
 
         # Generate sequence in chunks with varying properties
         chunk_size = 1000
@@ -266,19 +248,16 @@ class BoundaryRegion(ChromosomeRegion):
 
         # Calculate number and size of TADs
         total_length = self.length
-        if self.boundary_params.tad_params.max_size < total_length:
-            min_tad_size = self.boundary_params.tad_params.min_size
-            max_tad_size = self.boundary_params.tad_params.max_size
-        else:
-            min_tad_size = int(total_length/5)
-            max_tad_size = int(total_length/3)
-        transition_length = self.boundary_params.transition_params.transition_length  # Fixed line
+        transition_length = self.boundary_params.transition_params.transition_length  # Fixed length
 
-
-        # Ensure we have space for at least one TAD and two transitions
+        # Ensure we have space for initial and final transitions
         remaining_length = total_length - 2 * transition_length
-        target_tad_size = (min_tad_size + max_tad_size) // 2
-        num_tads = max(1, remaining_length // target_tad_size)
+        if remaining_length <= 0:
+            raise ValueError("Total length is too short for the required transitions.")
+
+        # Determine number of TADs based on average size
+        avg_tad_size = (self.boundary_params.tad_params.min_size + self.boundary_params.tad_params.max_size) // 2
+        num_tads = max(1, remaining_length // avg_tad_size)
 
         # Generate initial transition
         trans_seq, trans_features = self._create_chromatin_transition(
@@ -287,29 +266,40 @@ class BoundaryRegion(ChromosomeRegion):
             transition_length
         )
 
-        # Generate TADs
+        # Adjust feature positions for initial transition
+        for feature in trans_features:
+            feature['start'] += current_pos
+            feature['end'] += current_pos
+
+        sequence += trans_seq
+        features.extend(trans_features)
+        current_pos += transition_length
+
+        # Generate TADs with transitions
         for i in range(num_tads):
             # Calculate TAD size
             if i == num_tads - 1:
                 # Last TAD - use remaining space
-                tad_length = remaining_length - current_pos
+                tad_length = remaining_length - (i * avg_tad_size)
             else:
-                tad_length = np.random.randint(min_tad_size, max_tad_size)
+                tad_length = np.random.randint(
+                    self.boundary_params.tad_params.min_size,
+                    self.boundary_params.tad_params.max_size
+                )
 
-            # Generate TAD
-            tad_seq, tad_features = self._generate_tad(current_pos, tad_length)
+            # Create TADomain instance with correct size
+            tad = TADomain(self.boundary_params.tad_params, size=tad_length)
 
-            # Add initial transition features after adjusting positions
-            if i == 0:
-                for feature in trans_features:
-                    feature['start'] += current_pos
-                    feature['end'] += current_pos
-                sequence += trans_seq
-                features.extend(trans_features)
-                current_pos += transition_length
-            
-            # Add transition between TADs
-            elif i > 0:
+            # Generate TAD sequence and features
+            tad_seq, tad_features = self._generate_tad_sequence(tad, current_pos)
+
+            # Add TAD sequence and features
+            sequence += tad_seq
+            features.extend(tad_features)
+            current_pos += tad_length
+
+            # Add transition between TADs if not the last TAD
+            if i < num_tads - 1:
                 trans_seq, trans_features = self._create_chromatin_transition(
                     ChromatinState.BOUNDARY,
                     ChromatinState.BOUNDARY,
@@ -324,11 +314,6 @@ class BoundaryRegion(ChromosomeRegion):
                 sequence += trans_seq
                 features.extend(trans_features)
                 current_pos += transition_length
-
-            # Add TAD sequence and features
-            sequence += tad_seq
-            features.extend(tad_features)
-            current_pos += tad_length
 
         # Add final transition
         final_trans_seq, final_trans_features = self._create_chromatin_transition(
@@ -369,11 +354,11 @@ class BoundaryRegion(ChromosomeRegion):
         fixed_features = []
         
         for i, feature in enumerate(sorted_features):
-            if i > 0 and feature['start'] < fixed_features[-1]['end']:
-                # Adjust start position to avoid overlap
-                feature['start'] = fixed_features[-1]['end']
-                if feature['end'] <= feature['start']:
-                    continue  # Skip features that would have negative length
+            # if i > 0 and feature['start'] < fixed_features[-1]['end']:
+            #     # Adjust start position to avoid overlap
+            #     feature['start'] = fixed_features[-1]['end']
+            #     if feature['end'] <= feature['start']:
+            #         continue  # Skip features that would have negative length
             fixed_features.append(feature)
 
         return sequence, fixed_features
@@ -386,19 +371,19 @@ if __name__ == "__main__":
         start=0,
         end=200_000,
         gc_content=0.45)
-
+    
     boundary = BoundaryRegion(params)
     sequence, features = boundary.generate()
-
+    
     logger.info(f"Generated boundary region of length {len(sequence)}")
     logger.info(f"Number of features: {len(features)}")
-
+    
     # Analyze feature distribution
     feature_types = {}
     for feature in features:
         feat_type = feature['type']
         feature_types[feat_type] = feature_types.get(feat_type, 0) + 1
-
+    
     logger.info("Feature distribution:")
     for feat_type, count in feature_types.items():
         logger.info(f"{feat_type}: {count}")

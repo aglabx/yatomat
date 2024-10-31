@@ -43,7 +43,7 @@ class RegionParams:
 
 @dataclass
 class GradientParams:
-    """Параметры для создания градиентов"""
+    """Parameters for gradient generation"""
     start_value: float
     end_value: float
     shape: str = 'linear'  # linear, exponential, sigmoid
@@ -51,10 +51,10 @@ class GradientParams:
     
     def __post_init__(self):
         if self.shape not in ['linear', 'exponential', 'sigmoid']:
-            raise ValueError(f"Неподдерживаемый тип градиента: {self.shape}")
+            raise ValueError(f"Not supported shape: {self.shape}")
 
 class GradientGenerator:
-    """Генератор градиентов для различных параметров"""
+    """Generator for gradients"""
     
     @staticmethod
     def create_gradient(params: GradientParams, length: int) -> np.ndarray:
@@ -145,6 +145,27 @@ class ChromosomeRegion(ABC):
         seq = self.sequence[start:end]
         gc_count = seq.count('G') + seq.count('C')
         return gc_count / len(seq) if seq else 0.0
+    
+    def __dict__(self) -> Dict:
+        """Преобразует регион в словарь для сериализации"""
+        return {
+            'type': self.params.region_type.name,
+            'start': self.params.start,
+            'end': self.params.end,
+            'gc_content': self.params.gc_content,
+            'gc_std': self.params.gc_std,
+            'repeat_density': self.params.repeat_density,
+            'metadata': self.params.metadata
+        }
+    
+    def get_as_gff(self) -> str:
+        """Возвращает аннотации в формате GFF"""
+        lines = []
+        for ann in self.annotations:
+            line = f"{ann['start']}\t{ann['end']}\t{ann['type']}\t{self.params.region_type.name}\t.\t.\t.\t"
+            metadata = ";".join([f"{k}={v}" for k, v in ann['metadata'].items()])
+            lines.append(f"{line}{metadata}")
+        return "\n".join(lines)
 
 class SequenceFeature:
     """Класс для работы с особенностями последовательности"""
