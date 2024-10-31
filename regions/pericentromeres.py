@@ -1,17 +1,19 @@
-from typing import List, Dict, Optional, Tuple, Union
-from dataclasses import dataclass
+# yatomat/regions/pericentromeres.py
+from typing import List, Dict, Optional, Tuple, Union, cast
+from dataclasses import dataclass, field
 from enum import Enum
 import numpy as np
+from numpy.typing import ArrayLike
 from pathlib import Path
 import logging
 
-from .common import (
+from regions.common import (
     ChromosomeRegion, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator, SequenceFeature
 )
 from repeats import (
     RepeatGenerator, RepeatType, HORGenerator,
-    HomogenizationEngine, HORParams
+    MutationEngine, HORParams, MutationParams
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -40,11 +42,7 @@ class MobileElementParams:
     density: float = 0.2                  # Overall density of mobile elements
     min_size: int = 500                   # Minimum size of mobile elements
     max_size: int = 5000                  # Maximum size of mobile elements
-    types: List[str] = None              # Types of mobile elements to include
-
-    def __post_init__(self):
-        if self.types is None:
-            self.types = ['LINE', 'SINE', 'LTR', 'DNA']
+    types: List[str] = field(default_factory=lambda: ['LINE', 'SINE', 'LTR', 'DNA'])
 
 @dataclass
 class PericentromereParams:
@@ -54,17 +52,17 @@ class PericentromereParams:
     transition_length: int = 100_000      # 100 kb transitions
 
     # Parameters for different components
-    satellite_params: Optional[SatelliteDistributionParams] = None
-    mobile_element_params: Optional[MobileElementParams] = None
+    satellite_params: SatelliteDistributionParams = field(
+        default_factory=SatelliteDistributionParams
+    )
+    mobile_element_params: MobileElementParams = field(
+        default_factory=MobileElementParams
+    )
 
     # GC content parameters
     proximal_gc: float = 0.56             # GC content near centromere
     distal_gc: float = 0.52              # GC content far from centromere
     gc_std: float = 0.03                 # Standard deviation of GC content
-
-    def __post_init__(self):
-        self.satellite_params = self.satellite_params or SatelliteDistributionParams()
-        self.mobile_element_params = self.mobile_element_params or MobileElementParams()
 
 class PericentromereRegion(ChromosomeRegion):
     """Class for generating pericentromeric regions"""
@@ -77,7 +75,7 @@ class PericentromereRegion(ChromosomeRegion):
         self.gradient_gen = GradientGenerator()
         self.hor_gen = HORGenerator()
 
-    def _generate_mobile_element(self, size: int) -> Tuple[str, Dict]:
+    def _generate_mobile_element(self, size: int) -> Tuple[str, Dict[str, Union[str, int, float]]]:
         """Generate a mobile element sequence and its annotation"""
         params = self.pericentromere_params.mobile_element_params
         element_type = np.random.choice(params.types)
@@ -97,7 +95,7 @@ class PericentromereRegion(ChromosomeRegion):
             'gc_content': gc_content
         }
 
-    def _generate_satellite_block(self, size: int, zone: PericentromereZone) -> Tuple[str, Dict]:
+    def _generate_satellite_block(self, size: int, zone: PericentromereZone) -> Tuple[str, Dict[str, Union[str, int, float]]]:
         """Generate a satellite repeat block"""
         params = self.pericentromere_params.satellite_params
 
@@ -117,13 +115,15 @@ class PericentromereRegion(ChromosomeRegion):
 
         # Normalize probabilities
         total = alpha_prob + beta_prob + gamma_prob
-        probs = [alpha_prob/total, beta_prob/total, gamma_prob/total]
+        probs = np.array([alpha_prob/total, beta_prob/total, gamma_prob/total])
 
         # Choose satellite type
-        satellite_type = np.random.choice(
-            [RepeatType.ALPHA_SATELLITE, RepeatType.BETA_SATELLITE, RepeatType.SATELLITE_1],
-            p=probs
-        )
+        satellite_options = np.array([
+            RepeatType.ALPHA_SATELLITE,
+            RepeatType.BETA_SATELLITE,
+            RepeatType.SATELLITE_1
+        ])
+        satellite_type = cast(RepeatType, np.random.choice(satellite_options, p=probs))
 
         # Generate base monomer
         monomer = self.repeat_gen.generate_monomer(satellite_type)
@@ -141,7 +141,12 @@ class PericentromereRegion(ChromosomeRegion):
             mutation_rate = params.satellite_mutation_rate
 
         # Apply mutations
-        mut_engine = MutationEngine()
+        mut_params = MutationParams(
+            substitution_rate=mutation_rate,
+            insertion_rate=mutation_rate / 5,
+            deletion_rate=mutation_rate / 5
+        )
+        mut_engine = MutationEngine(mut_params)
         sequence, mutations = mut_engine.mutate_sequence(sequence)
 
         return sequence[:size], {
@@ -165,10 +170,10 @@ class PericentromereRegion(ChromosomeRegion):
         return self.gradient_gen.create_gradient(params, length)
 
     def _generate_zone(self, zone: PericentromereZone,
-                      length: int) -> Tuple[str, List[Dict]]:
+                      length: int) -> Tuple[str, List[Dict[str, Union[str, int, float]]]]:
         """Generate a specific zone of the pericentromeric region"""
         sequence = ""
-        features = []
+        features: List[Dict[str, Union[str, int, float]]] = []
         current_pos = 0
 
         # Create gradient for GC content
@@ -209,14 +214,14 @@ class PericentromereRegion(ChromosomeRegion):
             block_info.update({
                 'start': current_pos,
                 'end': current_pos + len(block_seq),
-                'zone': zone.value
+                'zone': str(zone.value)
             })
             features.append(block_info)
             current_pos += len(block_seq)
 
         return sequence, features
 
-    def generate(self) -> Tuple[str, List[Dict]]:
+    def generate(self) -> Tuple[str, List[Dict[str, Union[str, int, float]]]]:
         """Generate complete pericentromeric region"""
         # Determine total length
         total_length = np.random.randint(
@@ -235,7 +240,7 @@ class PericentromereRegion(ChromosomeRegion):
 
         # Generate each zone
         sequence = ""
-        features = []
+        features: List[Dict[str, Union[str, int, float]]] = []
         current_pos = 0
 
         for zone in [PericentromereZone.PROXIMAL, PericentromereZone.INTERMEDIATE,
@@ -254,8 +259,8 @@ class PericentromereRegion(ChromosomeRegion):
 
             # Update positions and add features
             for feature in zone_features:
-                feature['start'] += current_pos
-                feature['end'] += current_pos
+                feature['start'] = current_pos + int(feature['start'])
+                feature['end'] = current_pos + int(feature['end'])
 
             sequence += zone_seq
             features.extend(zone_features)
@@ -272,16 +277,16 @@ if __name__ == "__main__":
         gc_content=0.54
     )
 
-    pericentromere = PericentromereRegion(params)
+    pericentromere = PericentromereRegion(params, PericentromereParams())
     sequence, features = pericentromere.generate()
 
     logger.info(f"Generated pericentromeric sequence of length {len(sequence)}")
     logger.info(f"Number of features: {len(features)}")
 
     # Analyze feature distribution
-    feature_types = {}
+    feature_types: Dict[str, int] = {}
     for feature in features:
-        feat_type = feature['type']
+        feat_type = str(feature['type'])
         feature_types[feat_type] = feature_types.get(feat_type, 0) + 1
 
     logger.info("Feature distribution:")
