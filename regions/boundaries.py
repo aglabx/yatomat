@@ -266,8 +266,12 @@ class BoundaryRegion(ChromosomeRegion):
 
         # Calculate number and size of TADs
         total_length = self.length
-        min_tad_size = self.boundary_params.tad_params.min_size
-        max_tad_size = min(self.boundary_params.tad_params.max_size, total_length // 3)
+        if self.boundary_params.tad_params.max_size < total_length:
+            min_tad_size = self.boundary_params.tad_params.min_size
+            max_tad_size = self.boundary_params.tad_params.max_size
+        else:
+            min_tad_size = int(total_length/5)
+            max_tad_size = int(total_length/3)
         transition_length = self.boundary_params.transition_params.transition_length  # Fixed line
 
 
