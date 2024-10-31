@@ -6,11 +6,11 @@ import numpy as np
 from pathlib import Path
 import logging
 
-from .common import (
+from regions.common import (
     ChromosomeRegion, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator, SequenceFeature
 )
-from ..repeats import (
+from repeats import (
     RepeatGenerator, RepeatType, HORGenerator,
     HomogenizationEngine, HORParams
 )

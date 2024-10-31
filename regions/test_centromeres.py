@@ -8,13 +8,12 @@ from collections import Counter, defaultdict
 from typing import List, Dict, Tuple, Optional
 from dataclasses import asdict
 
-# Add path to modules
-# sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).parent.parent))
 
-# from regions.centromeres import (
-#     CentromereRegion, CentromereParams, CentromereZone, HORParams, CENPBParams
-# )
-# from regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
+from regions.centromeres import (
+    CentromereRegion, CentromereParams, CentromereZone, HORParams, CENPBParams
+)
+from regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
 
 
 logging.basicConfig(level=logging.INFO)
