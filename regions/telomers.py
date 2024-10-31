@@ -1,3 +1,4 @@
+# yatomat/regions/telomers.py
 from typing import List, Dict, Tuple, Optional
 import numpy as np
 from pathlib import Path
@@ -23,6 +24,7 @@ class TelomereParams:
     mutation_rate_3_end: float = 0.05  # Частота мутаций на 3' конце
     variant_repeat_prob: float = 0.1  # Вероятность вариантных повторов
     variant_types: List[str] = None  # Типы вариантных повторов
+    orientation: str = 'forward'  # Ориентация теломеры ('forward' или 'reverse')
 
     def __post_init__(self):
         if self.variant_types is None:
@@ -84,6 +86,11 @@ class TelomereRegion(ChromosomeRegion):
 
         return ''.join(sequence)
 
+    def _reverse_complement(self, sequence: str) -> str:
+        """Returns the reverse complement of a DNA sequence"""
+        complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
+        return ''.join(complement[base] for base in reversed(sequence))
+
     def generate(self) -> Tuple[str, List[Dict]]:
         """Генерирует теломерный регион"""
         # Определяем длину теломеры
@@ -123,6 +130,8 @@ class TelomereRegion(ChromosomeRegion):
                 repeat = self._apply_mutations(repeat, mutation_gradient[gradient_idx])
 
             # Добавляем повтор и его аннотацию
+            if self.telomere_params.orientation == 'reverse':
+                repeat = self._reverse_complement(repeat)
             sequence += repeat
             features.append({
                 'type': repeat_type,
@@ -133,7 +142,16 @@ class TelomereRegion(ChromosomeRegion):
 
             current_pos += len(repeat)
 
+        # Обрезаем до точной длины
         self.sequence = sequence[:telomere_length]
+
+        # Применяем ориентацию
+        # if self.telomere_params.orientation == 'reverse':
+        #     self.sequence = self._reverse_complement(self.sequence)
+        #     for feature in features:
+        #         feature['sequence'] = self._reverse_complement(feature['sequence'])
+        #         feature['start'], feature['end'] = telomere_length - feature['end'], telomere_length - feature['start']
+
         return self.sequence, features
 
 class SubtelomereRegion(ChromosomeRegion):

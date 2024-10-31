@@ -31,6 +31,7 @@ class RegionParams:
     gc_std: float = 0.02
     repeat_density: float = 0.0  # доля повторов в регионе
     metadata: Dict = None
+    orientation: str = 'forward'
 
     def __post_init__(self):
         if self.end <= self.start:
