@@ -1,4 +1,5 @@
 # yatomat/regions/pericentromeres.py
+from math import log
 from typing import List, Dict, Optional, Tuple, Union, cast
 from dataclasses import dataclass, field
 from enum import Enum
@@ -33,13 +34,13 @@ class SatelliteDistributionParams:
     beta_satellite_density: float = 0.2   # Proportion of beta satellites
     gamma_satellite_density: float = 0.15  # Proportion of other satellites
     satellite_mutation_rate: float = 0.1   # Base mutation rate for satellites
-    min_block_size: int = 1000            # Minimum size of satellite blocks
-    max_block_size: int = 10000           # Maximum size of satellite blocks
+    min_block_size: int = 5000            # Minimum size of satellite blocks
+    max_block_size: int = 20000           # Maximum size of satellite blocks
 
 @dataclass
 class MobileElementParams:
     """Parameters for mobile element integration"""
-    density: float = 0.2                  # Overall density of mobile elements
+    density: float = 0.1                 # Overall density of mobile elements
     min_size: int = 500                   # Minimum size of mobile elements
     max_size: int = 5000                  # Maximum size of mobile elements
     types: List[str] = field(default_factory=lambda: ['LINE', 'SINE', 'LTR', 'DNA'])
@@ -101,17 +102,18 @@ class PericentromereRegion(ChromosomeRegion):
 
         # Adjust satellite probabilities based on zone
         if zone == PericentromereZone.PROXIMAL:
-            alpha_prob = params.alpha_satellite_density * 1.5
+            alpha_prob = params.alpha_satellite_density * 2.0  # Increased from 1.5
             beta_prob = params.beta_satellite_density
-            gamma_prob = params.gamma_satellite_density * 0.5
+            gamma_prob = params.gamma_satellite_density * 0.3  # Decreased from 0.5
         elif zone == PericentromereZone.DISTAL:
-            alpha_prob = params.alpha_satellite_density * 0.5
+            alpha_prob = params.alpha_satellite_density * 0.3  # Decreased from 0.5
             beta_prob = params.beta_satellite_density
-            gamma_prob = params.gamma_satellite_density * 1.5
+            gamma_prob = params.gamma_satellite_density * 2.0  # Increased from 1.5
         else:
             alpha_prob = params.alpha_satellite_density
             beta_prob = params.beta_satellite_density
             gamma_prob = params.gamma_satellite_density
+
 
         # Normalize probabilities
         total = alpha_prob + beta_prob + gamma_prob
@@ -222,42 +224,42 @@ class PericentromereRegion(ChromosomeRegion):
         return sequence, features
 
     def generate(self) -> Tuple[str, List[Dict[str, Union[str, int, float]]]]:
-        """Generate complete pericentromeric region"""
-        # Determine total length
+        """Generate complete pericentromeric region with contiguous zones and transition zones."""
+        # Определение общей длины
         total_length = np.random.randint(
             self.pericentromere_params.min_total_length,
             self.pericentromere_params.max_total_length
         )
 
-        # Calculate zone lengths
-        main_length = total_length - 2 * self.pericentromere_params.transition_length
+        # Вычисление длины основных зон
+        transition_length = self.pericentromere_params.transition_length
+        main_length = total_length - 2 * transition_length
+        if main_length < 0:
+            raise ValueError("Transition length too large for total length")
+
+        # Распределение длин основных зон с учетом целых чисел
+        proximal_length = int(main_length * 0.4)
+        intermediate_length = int(main_length * 0.3)
+        distal_length = main_length - proximal_length - intermediate_length  # Остаток
+
         zone_lengths = {
-            PericentromereZone.PROXIMAL: int(main_length * 0.4),
-            PericentromereZone.INTERMEDIATE: int(main_length * 0.3),
-            PericentromereZone.DISTAL: int(main_length * 0.3),
-            PericentromereZone.TRANSITION: self.pericentromere_params.transition_length
+            PericentromereZone.PROXIMAL: proximal_length,
+            PericentromereZone.INTERMEDIATE: intermediate_length,
+            PericentromereZone.DISTAL: distal_length,
+            PericentromereZone.TRANSITION: transition_length
         }
 
-        # Generate each zone
+        # Генерация каждой зоны с переходными зонами
         sequence = ""
         features: List[Dict[str, Union[str, int, float]]] = []
         current_pos = 0
 
-        for zone in [PericentromereZone.PROXIMAL, PericentromereZone.INTERMEDIATE,
-                    PericentromereZone.DISTAL]:
-            # Generate main zone
+        for idx, zone in enumerate([PericentromereZone.PROXIMAL, PericentromereZone.INTERMEDIATE,
+                                    PericentromereZone.DISTAL]):
+            # Генерация основной зоны
             zone_seq, zone_features = self._generate_zone(zone, zone_lengths[zone])
 
-            # Add transition zone if not the last zone
-            if zone != PericentromereZone.DISTAL:
-                trans_seq, trans_features = self._generate_zone(
-                    PericentromereZone.TRANSITION,
-                    zone_lengths[PericentromereZone.TRANSITION]
-                )
-                zone_seq += trans_seq
-                zone_features.extend(trans_features)
-
-            # Update positions and add features
+            # Обновление позиций функций основной зоны
             for feature in zone_features:
                 feature['start'] = current_pos + int(feature['start'])
                 feature['end'] = current_pos + int(feature['end'])
@@ -266,7 +268,24 @@ class PericentromereRegion(ChromosomeRegion):
             features.extend(zone_features)
             current_pos += len(zone_seq)
 
+            # Добавление переходной зоны, если это не последняя основная зона
+            if zone != PericentromereZone.DISTAL:
+                trans_seq, trans_features = self._generate_zone(
+                    PericentromereZone.TRANSITION,
+                    zone_lengths[PericentromereZone.TRANSITION]
+                )
+
+                # Обновление позиций функций переходной зоны
+                for feature in trans_features:
+                    feature['start'] = current_pos + int(feature['start'])
+                    feature['end'] = current_pos + int(feature['end'])
+
+                sequence += trans_seq
+                features.extend(trans_features)
+                current_pos += len(trans_seq)
+
         return sequence, features
+
 
 if __name__ == "__main__":
     # Example usage

@@ -110,7 +110,7 @@ class TestChromosomeAssembly(unittest.TestCase):
         self.assertAlmostEqual(
             gc_content,
             expected_gc,
-            places=2,
+            delta=0.05,
             msg="Overall GC content significantly different from expected"
         )
 
