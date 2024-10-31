@@ -1,5 +1,8 @@
 # yatomat
 
+<img width="350" alt="Screenshot 2024-10-31 at 10 22 37" src="https://github.com/user-attachments/assets/fcb3d1b4-53cb-4fac-899a-e0c411b89c9b">
+
+
 Отлично! Давайте разобьем реализацию на логические модули. Вот предлагаемый план:
 
 1. `core.py` - базовые классы и функции:
