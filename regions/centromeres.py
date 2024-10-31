@@ -1,3 +1,4 @@
+# yatomat/regions/centromeres.py
 from typing import List, Dict, Optional, Tuple, Union
 from dataclasses import dataclass
 from enum import Enum
@@ -5,14 +6,14 @@ import numpy as np
 from pathlib import Path
 import logging
 
-# from .common import (
-#     ChromosomeRegion, RegionParams, ChromosomeRegionType,
-#     GradientParams, GradientGenerator, SequenceFeature
-# )
-# from repeats import (
-#     RepeatGenerator, RepeatType, HORGenerator,
-#     HomogenizationEngine, HORParams
-# )
+from .common import (
+    ChromosomeRegion, RegionParams, ChromosomeRegionType,
+    GradientParams, GradientGenerator, SequenceFeature
+)
+from ..repeats import (
+    RepeatGenerator, RepeatType, HORGenerator,
+    HomogenizationEngine, HORParams
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,6 +89,9 @@ class CentromereRegion(ChromosomeRegion):
         boxes = []
         params = self.centromere_params.cenpb_params
 
+        if params is None:
+            return boxes
+
         # Determine the probability of box insertion based on the zone
         presence_prob = params.presence_rate
 
@@ -137,6 +141,9 @@ class CentromereRegion(ChromosomeRegion):
             hor_params = self.centromere_params.core_hor_params
         else:
             hor_params = self.centromere_params.peripheral_hor_params
+
+        if hor_params is None:
+            return "", []
 
         # Рассчитываем базовые параметры
         single_hor_length = hor_params.unit_size * hor_params.units_in_hor
