@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 import random
 import numpy as np
-from core import SequenceGenerator, MutationEngine, GCProfiler, MutationParams
+from yatomat.core import SequenceGenerator, MutationEngine, GCProfiler, MutationParams
 import logging
 
 logging.basicConfig(level=logging.INFO)

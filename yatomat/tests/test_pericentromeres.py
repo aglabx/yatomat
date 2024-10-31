@@ -12,12 +12,12 @@ from typing import Optional
 # Add path to modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from regions.pericentromeres import (
+from yatomat.regions.pericentromeres import (
     PericentromereRegion, PericentromereParams, PericentromereZone,
     SatelliteDistributionParams, MobileElementParams
 )
-from regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
-from repeats import RepeatType
+from yatomat.regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
+from yatomat.repeats import RepeatType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

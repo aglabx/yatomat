@@ -9,7 +9,7 @@ import logging
 # Добавляем путь к модулям
 sys.path.append(str(Path(__file__).parent))
 
-from regions.common import (
+from yatomat.regions.common import (
     ChromosomeRegionType, RegionParams, GradientParams,
     GradientGenerator, ChromosomeRegion, SequenceFeature,
     RegionBuilder

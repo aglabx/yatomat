@@ -7,11 +7,11 @@ import logging
 from collections import Counter, defaultdict
 from typing import List, Dict, Tuple
 
-from regions.chromosome_regions import (
+from yatomat.regions.chromosome_regions import (
     ChromosomeAssembly, ChromosomeParams, ChromosomeArmParams,
     ChromatinState
 )
-from regions.common import (
+from yatomat.regions.common import (
     RegionBuilder, ChromosomeRegionType
 )
 

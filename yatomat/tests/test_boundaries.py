@@ -7,11 +7,11 @@ import logging
 from collections import Counter, defaultdict
 from typing import List, Dict, Tuple
 
-from regions.boundaries import (
+from yatomat.regions.boundaries import (
     BoundaryRegion, BoundaryParams, ChromatinState,
     TADParams, ChromatinTransitionParams, CTCFSite
 )
-from regions.common import (
+from yatomat.regions.common import (
     RegionBuilder, ChromosomeRegionType, GradientGenerator
 )
 

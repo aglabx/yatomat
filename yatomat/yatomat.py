@@ -7,15 +7,15 @@ from pathlib import Path
 import json
 import sys
 
-from regions.chromosome_regions import (
+from yatomat.regions.chromosome_regions import (
     ChromosomeParams, ChromosomeArmParams, ChromosomeAssembly,
     ChromatinState, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator
 )
-from regions.boundaries import BoundaryParams
-from regions.centromeres import CentromereParams
-from regions.telomers import TelomereParams, SubtelomereParams
-from regions.pericentromeres import PericentromereParams
+from yatomat.regions.boundaries import BoundaryParams
+from yatomat.regions.centromeres import CentromereParams
+from yatomat.regions.telomers import TelomereParams, SubtelomereParams
+from yatomat.regions.pericentromeres import PericentromereParams
 
 logging.basicConfig(
     level=logging.INFO,

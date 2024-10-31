@@ -6,20 +6,20 @@ import numpy as np
 from pathlib import Path
 import logging
 
-from regions.common import (
+from yatomat.regions.common import (
     ChromosomeRegion, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator, SequenceFeature
 )
-from regions.telomers import (
+from yatomat.regions.telomers import (
     TelomereRegion, SubtelomereRegion, TelomereParams, SubtelomereParams
 )
-from regions.centromeres import (
+from yatomat.regions.centromeres import (
     CentromereRegion, CentromereParams, CentromereZone
 )
-from regions.pericentromeres import (
+from yatomat.regions.pericentromeres import (
     PericentromereRegion, PericentromereParams, PericentromereZone
 )
-from regions.boundaries import (
+from yatomat.regions.boundaries import (
     BoundaryRegion, BoundaryParams, ChromatinState
 )
 

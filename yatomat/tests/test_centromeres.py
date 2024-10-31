@@ -10,10 +10,10 @@ from dataclasses import asdict
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from regions.centromeres import (
+from yatomat.regions.centromeres import (
     CentromereRegion, CentromereParams, CentromereZone, HORParams, CENPBParams
 )
-from regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
+from yatomat.regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
 
 
 logging.basicConfig(level=logging.INFO)

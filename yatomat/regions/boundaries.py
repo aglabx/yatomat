@@ -6,11 +6,11 @@ import numpy as np
 from pathlib import Path
 import logging
 
-from regions.common import (
+from yatomat.regions.common import (
     ChromosomeRegion, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator, SequenceFeature
 )
-from repeats import (
+from yatomat.repeats import (
     RepeatGenerator, RepeatType, HORGenerator,
     MutationEngine, MutationParams
 )

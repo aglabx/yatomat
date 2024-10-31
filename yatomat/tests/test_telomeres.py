@@ -10,10 +10,10 @@ from typing import List, Dict, Tuple
 # Add path to modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from regions.telomers import (
+from yatomat.regions.telomers import (
     TelomereRegion, SubtelomereRegion, TelomereParams, SubtelomereParams
 )
-from regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
+from yatomat.regions.common import RegionBuilder, ChromosomeRegionType, GradientGenerator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

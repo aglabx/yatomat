@@ -5,11 +5,11 @@ from pathlib import Path
 import logging
 from dataclasses import dataclass
 
-from regions.common import (
+from yatomat.regions.common import (
     ChromosomeRegion, RegionParams, ChromosomeRegionType,
     GradientParams, GradientGenerator, SequenceFeature
 )
-from repeats import RepeatGenerator, RepeatType, HORGenerator, HomogenizationEngine
+from yatomat.repeats import RepeatGenerator, RepeatType, HORGenerator, HomogenizationEngine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
