@@ -17,6 +17,16 @@ YATOMAT is a comprehensive tool designed to generate realistic artificial genome
 
 ## Installation
 
+### From PyPI
+
+You can install YATOMAT directly from PyPI:
+
+```bash
+pip install yatomat
+```
+
+### From Source
+
 Clone the repository and install the required dependencies:
 
 ```bash

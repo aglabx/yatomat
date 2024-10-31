@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='yatomat',
-    version='0.1.0',
+    version='0.1.1',
     author='Marina Popova, Aleksey Komissarov',
     author_email='ad3002@example.com',
     description='Yet Another Tool for Making Artificial Genomes',
