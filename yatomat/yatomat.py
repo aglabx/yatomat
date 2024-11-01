@@ -6,6 +6,10 @@ import logging
 from pathlib import Path
 import json
 import sys
+import platform
+import time
+from enum import Enum
+import subprocess
 
 from yatomat.regions.chromosome_regions import (
     ChromosomeParams, ChromosomeArmParams, ChromosomeAssembly,
@@ -166,6 +170,74 @@ def create_chromosome_params(config: Dict) -> ChromosomeParams:
         boundary_params=boundary_params
     )
 
+class SoundType(Enum):
+    STARTUP = 'startup'
+    SUCCESS = 'success'
+    ERROR = 'error'
+
+def play_sound(sound_type: SoundType):
+    """
+    Play different sounds depending on the event type and platform
+    
+    Args:
+        sound_type: Type of sound to play (startup, success, or error)
+    """
+    system = platform.system().lower()
+    
+    try:
+        if system == 'windows':
+            import winsound
+            
+            if sound_type == SoundType.STARTUP:
+                # Веселая приветственная мелодия
+                winsound.Beep(440, 200)  # A4
+                time.sleep(0.1)
+                winsound.Beep(523, 200)  # C5
+                time.sleep(0.1)
+                winsound.Beep(659, 400)  # E5
+            
+            elif sound_type == SoundType.SUCCESS:
+                # Торжественная мелодия завершения
+                winsound.Beep(523, 200)  # C5
+                time.sleep(0.1)
+                winsound.Beep(659, 200)  # E5
+                time.sleep(0.1)
+                winsound.Beep(784, 200)  # G5
+                time.sleep(0.1)
+                winsound.Beep(1046, 400)  # C6
+            
+            elif sound_type == SoundType.ERROR:
+                # Грустная мелодия ошибки
+                winsound.Beep(392, 300)  # G4
+                time.sleep(0.1)
+                winsound.Beep(369, 300)  # F#4
+                time.sleep(0.1)
+                winsound.Beep(349, 500)  # F4
+        
+        elif system == 'darwin':  # macOS
+            sounds = {
+                SoundType.STARTUP: 'Bottle.aiff',
+                SoundType.SUCCESS: 'Glass.aiff',
+                SoundType.ERROR: 'Sosumi.aiff'
+            }
+            subprocess.run(['afplay', f'/System/Library/Sounds/{sounds[sound_type]}'])
+        
+        elif system == 'linux':
+            sounds = {
+                SoundType.STARTUP: 'complete.oga',
+                SoundType.SUCCESS: 'success.oga',
+                SoundType.ERROR: 'dialog-error.oga'
+            }
+            
+            try:
+                subprocess.run(['paplay', f'/usr/share/sounds/freedesktop/stereo/{sounds[sound_type]}'])
+            except FileNotFoundError:
+                try:
+                    subprocess.run(['aplay', f'/usr/share/sounds/freedesktop/stereo/{sounds[sound_type]}'])
+                except FileNotFoundError:
+                    print('\a')
+    except Exception as e:
+        print('\a')
 
 def print_welcome_banner():
     """Print YATOMAT welcome banner with Braille tomato art"""
@@ -194,27 +266,31 @@ def print_welcome_banner():
 """
     print(banner)
 
+
 def main():
-    print_welcome_banner()  # Add this line at the start of main()
-    parser = argparse.ArgumentParser(description='YATOMAT - Yet Another Tool for Making Artificial genomes')
-    parser.add_argument('config', type=Path, help='Path to configuration file')
-    parser.add_argument('--output-dir', type=Path, default=Path('output'),
-                        help='Output directory (default: output)')
-    parser.add_argument('--prefix', type=str, default='chr',
-                        help='Prefix for output files (default: chr)')
-    parser.add_argument('--compress', action='store_true',
-                        help='Compress output files')
-    parser.add_argument('--seed', type=int, help='Random seed')
-
-    args = parser.parse_args()
-
-    if args.seed is not None:
-        import numpy as np
-        np.random.seed(args.seed)
-        import random
-        random.seed(args.seed)
-
+    """Main entry point of the program"""
+    print_welcome_banner()
+    play_sound(SoundType.STARTUP)
+    
     try:
+        parser = argparse.ArgumentParser(description='YATOMAT - Yet Another Tool for Making Artificial genomes')
+        parser.add_argument('config', type=Path, help='Path to configuration file')
+        parser.add_argument('--output-dir', type=Path, default=Path('output'),
+                          help='Output directory (default: output)')
+        parser.add_argument('--prefix', type=str, default='chr',
+                          help='Prefix for output files (default: chr)')
+        parser.add_argument('--compress', action='store_true',
+                          help='Compress output files')
+        parser.add_argument('--seed', type=int, help='Random seed')
+
+        args = parser.parse_args()
+
+        if args.seed is not None:
+            import numpy as np
+            np.random.seed(args.seed)
+            import random
+            random.seed(args.seed)
+
         config = load_config(args.config)
         chromosome_params = create_chromosome_params(config)
 
@@ -234,9 +310,14 @@ def main():
 
         logger.info(f"Successfully generated chromosome of length {len(sequence)} "
                    f"with {len(features)} features")
+        
+        # Воспроизводим победный звук при успешном завершении
+        play_sound(SoundType.SUCCESS)
 
     except Exception as e:
+        # Воспроизводим грустный звук при ошибке
         logger.error(f"Error during chromosome generation: {e}", exc_info=True)
+        play_sound(SoundType.ERROR)
         sys.exit(1)
 
 if __name__ == '__main__':
