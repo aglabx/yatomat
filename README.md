@@ -1,6 +1,6 @@
 # YATOMAT - Yet Another Tool for Making Artificial Genomes
 
-<img src="yatomat.png" alt="YATOMAT Logo" width="350">
+<img src="https://raw.githubusercontent.com/aglabx/yatomat/refs/heads/main/yatomat.png" alt="YATOMAT Logo" width="350">
 
 ## Overview
 
