@@ -19,7 +19,7 @@
     "telomere": {
         "min_length": 3000,
         "max_length": 15000,
-        "consensus_repeat": "TTAGGG",
+        "consensus_repeat": "CCCTAA",
         "mutation_rate_5_end": 0.01,
         "mutation_rate_3_end": 0.05,
         "variant_repeat_prob": 0.1

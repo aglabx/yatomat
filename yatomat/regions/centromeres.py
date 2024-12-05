@@ -291,6 +291,9 @@ class CentromereRegion(ChromosomeRegion):
 
     def generate(self) -> Tuple[str, List[Dict]]:
         """Генерирует полный центромерный регион"""
+
+        current_pos = 0
+        
         # Определяем размеры зон
         core_length = np.random.randint(
             self.centromere_params.min_core_length,
@@ -349,5 +352,52 @@ class CentromereRegion(ChromosomeRegion):
                 feature['end'] += current_pos
                 features.append(feature)
             current_pos += zone_length
+
+        # Add centromere region feature for full centromere
+        features.append({
+            'type': 'centromere',
+            'start': 0,
+            'end': len(sequence),
+            'zone': CentromereZone.CORE.value  # Assuming the core zone represents the centromere
+        })
+        
+
+        ### now for centromere parts
+
+        pos = 0
+        features.append({
+            'type': 'centromere_peripheral',
+            'start': pos,
+            'end': pos + len(left_peri_seq),
+            'zone': CentromereZone.PERIPHERAL.value
+        })
+        pos += len(left_peri_seq)
+        features.append({
+            'type': 'centromere_trans',
+            'start': pos,
+            'end': pos + len(left_trans_seq),
+            'zone': CentromereZone.TRANSITION.value
+        })
+        pos += len(left_trans_seq)
+        features.append({
+            'type': 'centromere_core',
+            'start': pos,
+            'end': pos + len(core_seq),
+            'zone': CentromereZone.CORE.value
+        })
+        pos += len(core_seq)
+        features.append({
+            'type': 'centromere_trans',
+            'start': pos,
+            'end': pos + len(right_trans_seq),
+            'zone': CentromereZone.TRANSITION.value
+        })
+        pos += len(right_trans_seq)
+        features.append({
+            'type': 'centromere_peripheral',
+            'start': pos,
+            'end': pos + len(right_peri_seq),
+            'zone': CentromereZone.PERIPHERAL.value
+        })
 
         return sequence, features

@@ -201,7 +201,7 @@ class ChromosomeAssembly:
         """Generate a chromosome arm with appropriate organization"""
         sequence = ""
         features = []
-        current_pos = self.current_position
+        current_pos = 0
 
         # Generate telomere
         self._update_region_params(
@@ -217,17 +217,20 @@ class ChromosomeAssembly:
             features.extend(tel_features)
             current_pos += len(tel_seq)
 
-        # Generate subtelomere
-        self._update_region_params(
-            self.subtelomere_gen,
-            current_pos,
-            current_pos + self.params.subtelomere_params.max_length,
-            arm_params.gc_content
-        )
-        subtel_seq, subtel_features = self.subtelomere_gen.generate()
-        sequence += subtel_seq
-        features.extend(subtel_features)
-        current_pos += len(subtel_seq)
+            # Generate subtelomere
+            self._update_region_params(
+                self.subtelomere_gen,
+                current_pos,
+                current_pos + self.params.subtelomere_params.max_length,
+                arm_params.gc_content
+            )
+            subtel_seq, subtel_features = self.subtelomere_gen.generate()
+            sequence += subtel_seq
+            for f in subtel_features:
+                f['start'] += current_pos
+                f['end'] += current_pos
+            features.extend(subtel_features)
+            current_pos += len(subtel_seq)
 
         # Generate pericentromere if this is adjacent to centromere
         remaining_length = (self.p_arm_length if is_p_arm else self.q_arm_length) - len(sequence)
@@ -243,76 +246,98 @@ class ChromosomeAssembly:
                 0.56  # Pericentromeric GC content
             )
             peri_seq, peri_features = self.pericentromere_gen.generate()
+            for f in peri_features:
+                f['start'] += current_pos
+                f['end'] += current_pos
             sequence += peri_seq
             features.extend(peri_features)
             current_pos += len(peri_seq)
             remaining_length -= peri_length
 
-        # Fill remaining space with appropriate chromatin structure
-        if remaining_length > 0:
-            # Create gradient for smooth transition
-            gc_gradient = self.gradient_gen.create_gradient(
-                GradientParams(
-                    start_value=arm_params.gc_content,
-                    end_value=arm_params.gc_content + arm_params.gc_std,
-                    shape='sigmoid'
-                ),
-                remaining_length
-            )
+        # # Fill remaining space with appropriate chromatin structure
+        # if remaining_length > 0:
+        #     # Create gradient for smooth transition
+        #     gc_gradient = self.gradient_gen.create_gradient(
+        #         GradientParams(
+        #             start_value=arm_params.gc_content,
+        #             end_value=arm_params.gc_content + arm_params.gc_std,
+        #             shape='sigmoid'
+        #         ),
+        #         remaining_length
+        #     )
 
-            # Generate sequence in chunks
-            chunk_size = 50000  # 50 kb chunks
-            current_state = arm_params.chromatin_state
+        #     # Generate sequence in chunks
+        #     chunk_size = 50000  # 50 kb chunks
+        #     current_state = arm_params.chromatin_state
 
-            for i in range(0, remaining_length, chunk_size):
-                chunk_length = min(chunk_size, remaining_length - i)
-                local_gc = float(np.mean(gc_gradient[i:i + chunk_length]))
+        #     for i in range(0, remaining_length, chunk_size):
+        #         chunk_length = min(chunk_size, remaining_length - i)
+        #         local_gc = float(np.mean(gc_gradient[i:i + chunk_length]))
 
-                # Possibly switch chromatin state
-                if np.random.random() < 0.2:  # 20% chance to switch
-                    new_state = (ChromatinState.HETEROCHROMATIN
-                               if current_state == ChromatinState.EUCHROMATIN
-                               else ChromatinState.EUCHROMATIN)
+        #         # Possibly switch chromatin state
+        #         if np.random.random() < 0.2:  # 20% chance to switch
+        #             new_state = (ChromatinState.HETEROCHROMATIN
+        #                        if current_state == ChromatinState.EUCHROMATIN
+        #                        else ChromatinState.EUCHROMATIN)
 
-                    # Add transition region feature
-                    features.append({
-                        'type': 'chromatin_transition',
-                        'start': current_pos,
-                        'end': current_pos + chunk_length,
-                        'from_state': current_state.value,
-                        'to_state': new_state.value
-                    })
-                    current_state = new_state
+        #             # Add transition region feature
+        #             features.append({
+        #                 'type': 'chromatin_transition',
+        #                 'start': current_pos,
+        #                 'end': current_pos + chunk_length,
+        #                 'from_state': current_state.value,
+        #                 'to_state': new_state.value
+        #             })
+        #             current_state = new_state
 
-                # Generate chunk with appropriate properties
-                chunk_seq = self.telomere_gen.repeat_gen.seq_gen.generate_sequence(
-                    chunk_length,
-                    local_gc=local_gc
-                )
-                sequence += chunk_seq
+        #         # Generate chunk with appropriate properties
+        #         chunk_seq = self.telomere_gen.repeat_gen.seq_gen.generate_sequence(
+        #             chunk_length,
+        #             local_gc=local_gc
+        #         )
+        #         sequence += chunk_seq
 
-                # Add feature annotations
-                features.append({
-                    'type': 'chromatin_region',
-                    'start': current_pos,
-                    'end': current_pos + chunk_length,
-                    'chromatin_state': current_state.value,
-                    'gc_content': local_gc
-                })
+        #         # Add feature annotations
+        #         features.append({
+        #             'type': 'chromatin_region',
+        #             'start': current_pos,
+        #             'end': current_pos + chunk_length,
+        #             'chromatin_state': current_state.value,
+        #             'gc_content': local_gc
+        #         })
 
-                # Add TAD feature
-                features.append({
-                    'type': 'TAD',
-                    'start': current_pos,
-                    'end': current_pos + chunk_length,
-                    'chromatin_state': current_state.value
-                })
+        #         # Add TAD feature
+        #         features.append({
+        #             'type': 'TAD',
+        #             'start': current_pos,
+        #             'end': current_pos + chunk_length,
+        #             'chromatin_state': current_state.value
+        #         })
 
-                current_pos += chunk_length
+        #         current_pos += chunk_length
 
         if not is_p_arm:
+
+            # Generate subtelomere
+            self._update_region_params(
+                self.subtelomere_gen,
+                current_pos,
+                current_pos + self.params.subtelomere_params.max_length,
+                arm_params.gc_content
+            )
+            subtel_seq, subtel_features = self.subtelomere_gen.generate()
+            sequence += subtel_seq
+            for f in subtel_features:
+                f['start'] += current_pos
+                f['end'] += current_pos
+            features.extend(subtel_features)
+            current_pos += len(subtel_seq)
+
             self.telomere_gen.telomere_params.orientation = "reverse"
             tel_seq, tel_features = self.telomere_gen.generate()
+            for f in tel_features:
+                f['start'] += current_pos
+                f['end'] += current_pos
             sequence += tel_seq
             features.extend(tel_features)
             current_pos += len(tel_seq)
@@ -332,7 +357,7 @@ class ChromosomeAssembly:
         )
         sequence += p_arm_seq
         self._add_features(p_arm_features)
-        self.current_position += len(p_arm_seq)
+        self.current_position = len(sequence)
 
         # 2. Generate centromere
         self._update_region_params(
@@ -347,7 +372,7 @@ class ChromosomeAssembly:
             f['start'] += self.current_position
             f['end'] += self.current_position
         self._add_features(cent_features)
-        self.current_position += len(cent_seq)
+        self.current_position = len(sequence)
 
         # 3. Generate Q arm
         q_arm_seq, q_arm_features = self._generate_arm(

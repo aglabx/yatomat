@@ -19,7 +19,7 @@ class TelomereParams:
     """Параметры для генерации теломерного региона"""
     min_length: int = 3000  # Минимальная длина теломеры (3 kb)
     max_length: int = 15000  # Максимальная длина теломеры (15 kb)
-    consensus_repeat: str = 'TTAGGG'  # Консенсусная последовательность
+    consensus_repeat: str = 'CCCTAA'  # Консенсусная последовательность
     mutation_rate_5_end: float = 0.01  # Частота мутаций на 5' конце
     mutation_rate_3_end: float = 0.05  # Частота мутаций на 3' конце
     variant_repeat_prob: float = 0.1  # Вероятность вариантных повторов
@@ -36,6 +36,13 @@ class TelomereParams:
                 'TTAGAG',  # А-вариант
                 'TTAGA',   # Укороченный вариант
             ]
+            self.variant_types = [self._reverse_complement(vt) for vt in self.variant_types]
+
+    @staticmethod
+    def _reverse_complement(sequence: str) -> str:
+        """Generate reverse complement of a sequence"""
+        complement = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G', 'N': 'N'}
+        return ''.join(complement.get(base, 'N') for base in reversed(sequence))
 
 @dataclass
 class SubtelomereParams:
@@ -119,10 +126,10 @@ class TelomereRegion(ChromosomeRegion):
             # Определяем, будет ли это вариантный повтор
             if np.random.random() < self.telomere_params.variant_repeat_prob:
                 repeat = self._generate_variant_repeat()
-                repeat_type = 'variant'
+                repeat_type = 'telomere_monomer_variant'
             else:
                 repeat = self.telomere_params.consensus_repeat
-                repeat_type = 'consensus'
+                repeat_type = 'telomere_monomer_consensus'
 
             # Вносим мутации согласно градиенту
             gradient_idx = current_pos // len(self.telomere_params.consensus_repeat)
@@ -151,6 +158,13 @@ class TelomereRegion(ChromosomeRegion):
         #     for feature in features:
         #         feature['sequence'] = self._reverse_complement(feature['sequence'])
         #         feature['start'], feature['end'] = telomere_length - feature['end'], telomere_length - feature['start']
+
+        # add feature for full telomere
+        features.append({
+            'type': 'telomere',
+            'start': 0,
+            'end': telomere_length
+        })
 
         return self.sequence, features
 
@@ -275,6 +289,13 @@ class SubtelomereRegion(ChromosomeRegion):
         # Корректируем последнюю аннотацию
         if features:
             features[-1]['end'] = min(features[-1]['end'], subtelomere_length)
+
+        # add subtype feature
+        features.append({
+            'type': 'subtelomere',
+            'start': 0,
+            'end': subtelomere_length
+        })
 
         return self.sequence, features
 

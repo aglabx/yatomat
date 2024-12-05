@@ -280,8 +280,8 @@ def main():
         parser.add_argument('--prefix', type=str, default='chr',
                           help='Prefix for output files (default: chr)')
         parser.add_argument('--compress', action='store_true',
-                          help='Compress output files')
-        parser.add_argument('--seed', type=int, help='Random seed')
+                          help='Compress output files', default=False)
+        parser.add_argument('--seed', type=int, help='Random seed', default=23)
 
         args = parser.parse_args()
 
