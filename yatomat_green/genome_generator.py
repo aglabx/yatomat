@@ -1,40 +1,10 @@
 import random
-import argparse
+# Remove argparse import
 from pathlib import Path
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
-
-@dataclass
-class GenomeFeature:
-    """Class for storing genomic feature information"""
-    seqid: str
-    source: str
-    type: str
-    start: int
-    end: int
-    score: str = "."
-    strand: str = "+"
-    phase: str = "."
-    attributes: Dict[str, str] = None
-
-class GFFWriter:
-    """Utility class for writing GFF3 files"""
-    
-    @staticmethod
-    def format_attributes(attrs: Dict[str, str]) -> str:
-        if not attrs:
-            return "."
-        return ";".join(f"{k}={v}" for k, v in attrs.items())
-    
-    def write(self, features: List[GenomeFeature], output_path: str):
-        with open(output_path, 'w') as f:
-            f.write("##gff-version 3\n")
-            for feature in features:
-                attrs = self.format_attributes(feature.attributes or {})
-                f.write(f"{feature.seqid}\t{feature.source}\t{feature.type}\t"
-                        f"{feature.start}\t{feature.end}\t{feature.score}\t"
-                        f"{feature.strand}\t{feature.phase}\t{attrs}\n")
+from gff_handling import GFFWriter, GenomeFeature
 
 class Scenario(ABC):
     """Base class for genome generation scenarios"""
@@ -404,39 +374,3 @@ class GenomeGenerator:
                     f.write(sequence[i:i+60] + '\n')
         
         print(f"Finished writing genome to {output_path}")
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Generate artificial genome sequences")
-    parser.add_argument('--scenario', type=str, default='simple',
-                       help='Generation scenario to use')
-    parser.add_argument('--list', action='store_true',
-                       help='List all available scenarios')
-    parser.add_argument('--size', type=int, default=100,
-                       help='Total genome size in Mb')
-    parser.add_argument('--chromosomes', type=int, default=6,
-                       help='Number of chromosomes')
-    return parser.parse_args()
-
-def main():
-    args = parse_args()
-    
-    if args.list:
-        GenomeGenerator.list_scenarios()
-        return
-    
-    print(f"=== Starting Genome Generation with {args.scenario} scenario ===")
-    generator = GenomeGenerator(total_size_mb=args.size, 
-                              num_chromosomes=args.chromosomes)
-    
-    try:
-        generator.execute_scenario(args.scenario)
-    except ValueError as e:
-        print(f"Error: {e}")
-        GenomeGenerator.list_scenarios()
-        return 1
-    
-    print("=== Generation Complete ===")
-    return 0
-
-if __name__ == "__main__":
-    exit(main())
